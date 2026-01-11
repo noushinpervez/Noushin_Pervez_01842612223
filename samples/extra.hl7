@@ -1,0 +1,6 @@
+MSH|^~\&|SCHEDULER|HOSPITAL|EHR|MAIN|20250502150000||SIU^S12|MSG301|P|2.5
+SCH|APT200|APT200|||||Urgent Care||ER Room 5||20250502153000
+PID|1||PAT200||Wilson^James^Edward||19650412|M|||456 Oak Ave^^Chicago^IL^60601||555-1234
+PV1|1|E|Emergency^ER Room 5^Bed 2||||DR100^Adams^Jennifer^Marie||||||||||V200
+NTE|1||Patient has history of heart disease
+OBX|1|TX|VITALS||BP: 140/90, HR: 88, Temp: 98.6
