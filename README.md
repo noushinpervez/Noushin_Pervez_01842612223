@@ -14,6 +14,13 @@ Parse a file and see JSON output:
 python hl7_parser_cli.py samples/single.hl7
 ```
 
+Or using Docker (after building the image):
+
+```bash
+docker build -t hl7-parser .
+docker run -v "${PWD}/samples:/data" hl7-parser /data/single.hl7
+```
+
 Or use as a library:
 
 ```bash
@@ -297,14 +304,20 @@ docker run -v ${PWD}/samples:/data hl7-parser /data/single.hl7
 
 Run it (Windows Command Prompt):
 
-```bash
-docker run -v %cd%/samples:/data hl7-parser /data/single.hl7
+```cmd
+docker run -v "%cd%/samples:/data" hl7-parser /data/single.hl7
 ```
 
 Save output to file:
 
 ```bash
 docker run -v $(pwd):/data hl7-parser /data/samples/single.hl7 -o /data/output.json
+```
+
+Or on Windows Command Prompt:
+
+```cmd
+docker run -v "%cd%:/data" hl7-parser /data/samples/single.hl7 -o /data/output.json
 ```
 
 ## Troubleshooting
@@ -315,7 +328,7 @@ docker run -v $(pwd):/data hl7-parser /data/samples/single.hl7 -o /data/output.j
 - **Missing segment errors**: Check that required segments (MSH, SCH) are present in your messages
 - **Encoding issues**: Files should be UTF-8 encoded
 - **Large files**: Use the `-s/--streaming` flag for memory efficiency
-- **Docker volume mounting**: Use absolute paths or correct syntax for your OS
+- **Docker volume mounting**: Use absolute paths or correct syntax for your OS. On Windows, quote paths with spaces (e.g., `"%cd%/samples:/data"` in CMD).
 
 ### Debug Mode
 
