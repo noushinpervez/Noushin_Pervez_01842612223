@@ -310,6 +310,12 @@ docker run -v "%cd%/samples:/data" hl7-parser /data/single.hl7
 
 Save output to file:
 
+```powershell
+docker run -v "${PWD}:/data" hl7-parser /data/samples/single.hl7 -o /data/output.json
+```
+
+Or on Linux/macOS (bash/zsh):
+
 ```bash
 docker run -v $(pwd):/data hl7-parser /data/samples/single.hl7 -o /data/output.json
 ```
