@@ -14,6 +14,9 @@ Or: python -m unittest tests.test_parser
 
 import unittest
 import sys
+import json
+import tempfile
+import os
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -349,16 +352,30 @@ class TestValidateMessageType(unittest.TestCase):
 class TestParseHL7Message(unittest.TestCase):
     """Integration tests for full message parsing."""
 
+    def _create_basic_message(
+        self,
+        appointment_id="123456",
+        patient_id="P12345",
+        first_name="John",
+        last_name="Doe",
+        provider_id="D67890",
+        provider_name="Smith^Dr",
+        reason="Consultation",
+        datetime="20250502130000",
+    ):
+        """Helper method to create a basic HL7 message with customizable fields."""
+        return f"""MSH|^~\\&|SENDER|FAC|REC|FAC|20250502130000||SIU^S12|123|P|2.5
+SCH|123456|{appointment_id}|||||{reason}||Clinic A||{datetime}
+PID|1||{patient_id}||{last_name}^{first_name}||19850210|M
+PV1|1|O|Clinic A||||{provider_id}^{provider_name}"""
+
     def test_parse_complete_message(self):
         """Test parsing a complete valid SIU^S12 message."""
-        message = """MSH|^~\\&|SENDER|FAC|REC|FAC|20250502130000||SIU^S12|123|P|2.5
-SCH|123456|456789|||||Consultation||Clinic A||20250502130000
-PID|1||P12345||Doe^John||19850210|M
-PV1|1|O|Clinic A||||D67890^Smith^Dr"""
+        message = self._create_basic_message()
 
         appointment = parse_hl7_message(message)
 
-        self.assertEqual(appointment.appointment_id, "456789")
+        self.assertEqual(appointment.appointment_id, "123456")
         self.assertEqual(appointment.appointment_datetime, "2025-05-02T13:00:00Z")
         self.assertEqual(appointment.patient.id, "P12345")
         self.assertEqual(appointment.patient.first_name, "John")
@@ -421,10 +438,7 @@ PID|1||P12345||Test^Patient"""
 
     def test_parse_single_message(self):
         """Test parsing using parse_single_message function."""
-        message = """MSH|^~\\&|SENDER|FAC|REC|FAC|20250502130000||SIU^S12|123|P|2.5
-SCH|123456|456789|||||Consultation||Clinic A||20250502130000
-PID|1||P12345||Doe^John||19850210|M
-PV1|1|O|Clinic A||||D67890^Smith^Dr"""
+        message = self._create_basic_message()
 
         appointment1 = parse_hl7_message(message)
         appointment2 = parse_single_message(message)
@@ -498,26 +512,33 @@ SCH|2||||||Reason2||Loc2||20250502140000"""
 class TestParseHL7FileStreaming(unittest.TestCase):
     """Tests for streaming file parsing functionality."""
 
+    def _create_temp_hl7_file(self, content):
+        """Helper method to create a temporary HL7 file."""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".hl7", delete=False) as f:
+            f.write(content)
+            temp_path = f.name
+
+        return temp_path
+
+    def _cleanup_temp_file(self, temp_path):
+        """Helper method to clean up temporary file."""
+
+        os.unlink(temp_path)
+
     def test_stream_single_message(self):
         """Test streaming parsing of a file with single message."""
         content = """MSH|^~\\&|A|B|C|D|20250502||SIU^S12|1|P|2.5
 SCH|1||||||Reason||Loc||20250502130000
 PID|1||P1||Doe^John"""
 
-        # Create temporary file
-        import tempfile
-        import os
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".hl7", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
-
+        temp_path = self._create_temp_hl7_file(content)
         try:
             appointments = list(parse_hl7_file_streaming(temp_path))
             self.assertEqual(len(appointments), 1)
             self.assertEqual(appointments[0].appointment_id, "1")
         finally:
-            os.unlink(temp_path)
+            self._cleanup_temp_file(temp_path)
 
     def test_stream_multiple_messages(self):
         """Test streaming parsing of a file with multiple messages."""
@@ -529,21 +550,14 @@ MSH|^~\\&|A|B|C|D|20250502||SIU^S12|2|P|2.5
 SCH|2||||||Reason2||Loc2||20250502140000
 PID|1||P2||Smith^Jane"""
 
-        # Create temporary file
-        import tempfile
-        import os
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".hl7", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
-
+        temp_path = self._create_temp_hl7_file(content)
         try:
             appointments = list(parse_hl7_file_streaming(temp_path))
             self.assertEqual(len(appointments), 2)
             self.assertEqual(appointments[0].appointment_id, "1")
             self.assertEqual(appointments[1].appointment_id, "2")
         finally:
-            os.unlink(temp_path)
+            self._cleanup_temp_file(temp_path)
 
     def test_stream_continue_on_error(self):
         """Test streaming with continue_on_error=True."""
@@ -558,14 +572,7 @@ MSH|^~\\&|A|B|C|D|20250502||SIU^S12|3|P|2.5
 SCH|3||||||Reason3||Loc3||20250502150000
 PID|1||P3||Brown^Bob"""
 
-        # Create temporary file
-        import tempfile
-        import os
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".hl7", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
-
+        temp_path = self._create_temp_hl7_file(content)
         try:
             appointments = list(
                 parse_hl7_file_streaming(temp_path, continue_on_error=True)
@@ -576,7 +583,7 @@ PID|1||P3||Brown^Bob"""
             self.assertEqual(appointments[0].appointment_id, "1")
             self.assertEqual(appointments[1].appointment_id, "3")
         finally:
-            os.unlink(temp_path)
+            self._cleanup_temp_file(temp_path)
 
 
 class TestAppointmentToJson(unittest.TestCase):
@@ -593,7 +600,6 @@ PV1|1|O|Clinic A^Room 203||||D67890^Smith^Dr"""
         json_output = appointment.to_json()
 
         # Verify it's valid JSON and contains expected fields
-        import json
 
         data = json.loads(json_output)
 
@@ -740,6 +746,19 @@ PID|1||P12345||Doe^John"""
         with self.assertRaises(InvalidMessageTypeError):
             parse_hl7_message(oru_message)
 
+
+class TestEdgeCases(unittest.TestCase):
+    """
+    Tests for specific edge cases.
+
+    These are the tricky real-world scenarios that break naive parsers.
+    These scenarios are common in real-world HL7 feeds.
+    """
+
+    def _create_basic_message_with_line_endings(self, line_ending):
+        """Helper method to create a basic message with specified line endings."""
+        return f"MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5{line_ending}SCH|1|2|||||||Loc||20250502130000{line_ending}PID|1||P1||Doe^John"
+
     def test_various_line_ending_formats(self):
         """
         Test handling of different line endings.
@@ -747,20 +766,23 @@ PID|1||P12345||Doe^John"""
         HL7 spec says \\r but real files have \\n, \\r\\n, or mixed.
         Had to deal with this a lot from different EMR systems.
         """
-        # Unix line endings
-        unix_msg = "MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5\nSCH|1|2|||||||Loc||20250502130000\nPID|1||P1||Doe^John"
-        appt1 = parse_hl7_message(unix_msg)
-        self.assertEqual(appt1.patient.last_name, "Doe")
+        test_cases = [
+            ("\n", "Unix line endings"),
+            ("\r\n", "Windows line endings"),
+            ("\r", "Classic HL7 (carriage return only)"),
+        ]
 
-        # Windows line endings
-        win_msg = "MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5\r\nSCH|1|2|||||||Loc||20250502130000\r\nPID|1||P1||Doe^John"
-        appt2 = parse_hl7_message(win_msg)
-        self.assertEqual(appt2.patient.last_name, "Doe")
+        for line_ending, description in test_cases:
+            with self.subTest(line_ending=description):
+                msg = self._create_basic_message_with_line_endings(line_ending)
+                appt = parse_hl7_message(msg)
+                self.assertEqual(appt.patient.last_name, "Doe")
 
-        # Classic HL7 (carriage return only)
-        cr_msg = "MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5\rSCH|1|2|||||||Loc||20250502130000\rPID|1||P1||Doe^John"
-        appt3 = parse_hl7_message(cr_msg)
-        self.assertEqual(appt3.patient.last_name, "Doe")
+    def _create_timestamp_message(self, timestamp):
+        """Helper method to create a message with a specific timestamp."""
+        return f"""MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
+SCH|1|2|||||||Loc||{timestamp}
+PID|1||P1||Doe^John"""
 
     def test_timestamp_edge_cases(self):
         """
@@ -768,20 +790,24 @@ PID|1||P12345||Doe^John"""
 
         HL7 timestamps are surprisingly inconsistent across systems.
         """
-        # Date only (no time) - should default to midnight
-        msg1 = """MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
-SCH|1|2|||||||Loc||20250502
-PID|1||P1||Doe^John"""
-        appt1 = parse_hl7_message(msg1)
-        self.assertEqual(appt1.appointment_datetime, "2025-05-02T00:00:00Z")
+        test_cases = [
+            (
+                "20250502",
+                "2025-05-02T00:00:00Z",
+                "Date only (no time) - should default to midnight",
+            ),
+            (
+                "20250502130000-0500",
+                "2025-05-02T13:00:00Z",
+                "With timezone offset (should still work)",
+            ),
+        ]
 
-        # With timezone offset (should still work)
-        msg2 = """MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
-SCH|1|2|||||||Loc||20250502130000-0500
-PID|1||P1||Doe^John"""
-        appt2 = parse_hl7_message(msg2)
-        # Timezone is stripped for simplicity (documented tradeoff)
-        self.assertEqual(appt2.appointment_datetime, "2025-05-02T13:00:00Z")
+        for timestamp, expected, description in test_cases:
+            with self.subTest(timestamp=description):
+                msg = self._create_timestamp_message(timestamp)
+                appt = parse_hl7_message(msg)
+                self.assertEqual(appt.appointment_datetime, expected)
 
     def test_gender_normalization(self):
         """
@@ -789,29 +815,19 @@ PID|1||P1||Doe^John"""
 
         Should handle M, F, O, U and map unknown values to U.
         """
-        # Standard male
-        msg_m = """MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
-SCH|1|2|||||||Loc||20250502130000
-PID|1||P1||Doe^John||19850210|M"""
-        self.assertEqual(parse_hl7_message(msg_m).patient.gender, "M")
+        test_cases = [
+            ("M", "M", "John"),
+            ("F", "F", "Jane"),
+            ("O", "O", "Pat"),
+            ("X", "U", "Alex"),
+        ]
 
-        # Standard female
-        msg_f = """MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
+        for gender_code, expected, first_name in test_cases:
+            with self.subTest(gender_code=gender_code):
+                msg = f"""MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
 SCH|1|2|||||||Loc||20250502130000
-PID|1||P1||Doe^Jane||19850210|F"""
-        self.assertEqual(parse_hl7_message(msg_f).patient.gender, "F")
-
-        # Other
-        msg_o = """MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
-SCH|1|2|||||||Loc||20250502130000
-PID|1||P1||Doe^Pat||19850210|O"""
-        self.assertEqual(parse_hl7_message(msg_o).patient.gender, "O")
-
-        # Unknown value should map to U
-        msg_x = """MSH|^~\\&|S|F|R|F|20250502||SIU^S12|1|P|2.5
-SCH|1|2|||||||Loc||20250502130000
-PID|1||P1||Doe^Alex||19850210|X"""
-        self.assertEqual(parse_hl7_message(msg_x).patient.gender, "U")
+PID|1||P1||Doe^{first_name}||19850210|{gender_code}"""
+                self.assertEqual(parse_hl7_message(msg).patient.gender, expected)
 
 
 if __name__ == "__main__":

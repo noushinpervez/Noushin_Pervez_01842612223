@@ -112,7 +112,7 @@ The design focuses on several key goals:
 │   ├── segment_parsers.py     # Low-level segment parsing functions
 │   └── exceptions.py          # Custom exception types
 ├── tests/
-│   └── test_parser.py         # Unit tests (66 tests currently)
+│   └── test_parser.py         # Unit tests (60 tests currently)
 ├── samples/                   # Sample HL7 files for testing
 │   ├── single.hl7            # One complete message
 │   ├── multiple.hl7          # Three messages in one file
@@ -228,6 +228,53 @@ python hl7_parser_cli.py samples/wrong_type.hl7 -d -e
 | `-s`  | `--streaming`         | Use memory-efficient streaming for large files                               |
 | `-d`  | `--debug`             | Show errors/warnings mixed with JSON output on stdout (useful for scripting) |
 
+Get help:
+
+```bash
+python hl7_parser_cli.py --help
+```
+
+Output:
+
+```
+usage: hl7_parser_cli.py [-h] [-o OUTPUT_FILE] [-c] [-v] [-e] [-s] [-d] input_file
+
+Parse HL7 SIU S12 messages and convert to JSON
+
+positional arguments:
+  input_file            Path to the HL7 file to parse
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT_FILE, --output OUTPUT_FILE
+                        Path to save JSON output (default: print to stdout)
+  -c, --compact         Output compact JSON without indentation
+  -v, --verbose         Print verbose output including parsing details
+  -e, --continue-on-error
+                        Continue parsing remaining messages if one fails
+  -s, --streaming       Use streaming mode for memory-efficient parsing of large files (outputs JSON Lines format)
+  -d, --debug           Show both errors/warnings and output data together in a single stream
+
+Examples:
+  hl7_parser_cli.py appointments.hl7
+      Parse file and print JSON to stdout
+
+  hl7_parser_cli.py appointments.hl7 -o result.json
+      Parse file and save JSON to result.json
+
+  hl7_parser_cli.py appointments.hl7 -v
+      Parse file with detailed output
+
+  hl7_parser_cli.py appointments.hl7 -e
+      Continue parsing even if some messages fail
+
+  hl7_parser_cli.py appointments.hl7 -s
+      Memory-efficient streaming for large files (JSON Lines format)
+
+  hl7_parser_cli.py appointments.hl7 -d
+      Show errors/warnings and output together
+```
+
 ### Using Docker
 
 Build the image:
@@ -292,7 +339,7 @@ Or with pytest if you have it:
 pytest tests/ -v
 ```
 
-Current test count: **66 tests** covering parsing logic, edge cases and error handling.
+Current test count: **60 tests** covering parsing logic, edge cases and error handling.
 
 ## Design Decisions
 
